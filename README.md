@@ -1,12 +1,12 @@
 # ESP32 Bilancia - Weight Scale Firmware
 
-Firmware per modulo **LilyGo T-Display (ESP32)** per la lettura di celle di carico tramite amplificatore **HX711**.
+Firmware per modulo **LilyGo T-Display S3 (ESP32-S3)** per la lettura di celle di carico tramite amplificatore **HX711**.
 
 ## Caratteristiche
 
 - Lettura peso in tempo reale a 80 SPS (modalità fast)
 - Tara automatica all'avvio
-- Visualizzazione su display TFT integrato:
+- Visualizzazione su display TFT integrato 1.9":
   - Riga superiore: peso attuale in grammi
   - Riga inferiore: peso massimo registrato nella sessione
 - Output seriale compatibile con **Arduino Serial Plotter**
@@ -16,31 +16,41 @@ Firmware per modulo **LilyGo T-Display (ESP32)** per la lettura di celle di cari
 
 | Componente | Descrizione |
 |------------|-------------|
-| LilyGo T-Display | Modulo ESP32 con display TFT ST7789 1.14" |
+| LilyGo T-Display S3 | ESP32-S3 con display TFT ST7789 1.9" (170x320) |
 | HX711 | Amplificatore ADC 24-bit per celle di carico |
 | Cella di carico | Default: 10kg (configurabile) |
 
 ## Schema di Collegamento
 
 ```
-HX711          ESP32 T-Display
-------         ---------------
+HX711          T-Display S3
+------         -------------
 VCC     -->    3.3V
 GND     -->    GND
-DOUT    -->    GPIO 27
-SCK     -->    GPIO 26
+DOUT    -->    GPIO 16
+SCK     -->    GPIO 17
 
 Cella di carico --> HX711 (E+, E-, A+, A-)
 ```
 
-### Pinout T-Display utilizzato
+### Pinout T-Display S3 utilizzato
 
 | Pin | Funzione |
 |-----|----------|
-| GPIO 26 | HX711 SCK (Clock) |
-| GPIO 27 | HX711 DOUT (Data) |
+| GPIO 16 | HX711 DOUT (Data) |
+| GPIO 17 | HX711 SCK (Clock) |
 | GPIO 0 | Pulsante BOOT (Reset Tara) |
-| GPIO 35 | Pulsante laterale (Reset Peso Max) |
+| GPIO 14 | Pulsante KEY (Reset Peso Max) |
+| GPIO 15 | Display Power (automatico) |
+
+### Pin disponibili per espansioni
+
+GPIO liberi: 1, 2, 3, 10, 11, 12, 13, 18, 21, 43, 44
+
+**Pin da evitare** (usati dal display):
+- GPIO 5, 6, 7, 8, 9 (controllo display)
+- GPIO 38 (backlight)
+- GPIO 39, 40, 41, 42, 45, 46, 47, 48 (bus dati display)
 
 ## Configurazione
 
@@ -72,11 +82,11 @@ Nel file `esp32_bilancia.ino` puoi modificare le seguenti costanti:
 - Assicurarsi che la bilancia sia scarica durante l'avvio
 
 ### Pulsanti
-| Pulsante | Funzione |
-|----------|----------|
-| BOOT (GPIO 0) | Reset Tara (azzera il peso) |
-| Laterale (GPIO 35) | Reset Peso Massimo |
-| EN/RST | Reset completo del dispositivo |
+| Pulsante | Posizione | Funzione |
+|----------|-----------|----------|
+| BOOT (GPIO 0) | Sopra il display | Reset Tara (azzera il peso) |
+| KEY (GPIO 14) | Sopra il display | Reset Peso Massimo |
+| RST | Laterale | Reset completo del dispositivo |
 
 ### Serial Plotter
 - Aprire Arduino IDE > Strumenti > Serial Plotter
@@ -87,27 +97,50 @@ Nel file `esp32_bilancia.ino` puoi modificare le seguenti costanti:
 
 ## Dipendenze (Librerie Arduino)
 
-Installare tramite Library Manager di Arduino IDE:
+### 1. TFT_eSPI by Bodmer
 
-1. **TFT_eSPI** by Bodmer
-   - Dopo l'installazione, configurare per T-Display:
-   - Modificare `User_Setup_Select.h` nella cartella della libreria
-   - Commentare `#include <User_Setup.h>`
-   - Decommentare `#include <User_Setups/Setup25_TTGO_T_Display.h>`
+**IMPORTANTE per T-Display S3:**
 
-2. **HX711 Arduino Library** by Bogdan Necula
-   - Nel Library Manager cerca: `HX711`
-   - Seleziona: "HX711 Arduino Library" by Bogdan Necula
-   - Repository: https://github.com/bogde/HX711
+La versione standard di TFT_eSPI richiede configurazione manuale.
 
-## Installazione
+**Opzione A - Configurazione manuale:**
+1. Installare TFT_eSPI dal Library Manager
+2. Aprire il file `User_Setup_Select.h` nella cartella della libreria
+3. Commentare: `#include <User_Setup.h>`
+4. Decommentare: `#include <User_Setups/Setup206_LilyGo_T_Display_S3.h>`
 
-1. Clonare questo repository
-2. Installare le librerie richieste
-3. Aprire `esp32_bilancia.ino` con Arduino IDE
-4. Selezionare scheda: **ESP32 Dev Module** o **TTGO T-Display**
-5. Configurare il fattore di calibrazione se necessario
-6. Caricare il firmware
+**Opzione B - Usare la libreria LilyGo (consigliato):**
+1. Scaricare la libreria TFT_eSPI dal [repository LilyGo T-Display-S3](https://github.com/Xinyuan-LilyGO/T-Display-S3)
+2. Sostituire la cartella TFT_eSPI nelle librerie Arduino
+3. NON aggiornare la libreria quando Arduino IDE lo propone
+
+### 2. HX711 Arduino Library by Bogdan Necula
+
+- Nel Library Manager cerca: `HX711`
+- Seleziona: "HX711 Arduino Library" by Bogdan Necula
+- Repository: https://github.com/bogde/HX711
+
+## Installazione Arduino IDE
+
+### Configurazione Board Manager
+
+1. Aprire Arduino IDE > File > Preferences
+2. Aggiungere URL Board Manager:
+   ```
+   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+   ```
+3. Strumenti > Board > Board Manager
+4. Cercare "esp32" e installare **versione 2.0.14** o **2.0.17**
+
+   **NOTA:** Versioni 3.x possono causare errori di compilazione con T-Display S3
+
+### Selezione Scheda
+
+- Board: **ESP32S3 Dev Module**
+- USB CDC On Boot: **Enabled**
+- Flash Size: **16MB**
+- Partition Scheme: **Default 4MB with spiffs** (o 16MB se disponibile)
+- PSRAM: **OPI PSRAM**
 
 ## Formato Output Seriale
 
@@ -126,10 +159,18 @@ I valori sono separati da tabulazione, compatibili con il Serial Plotter.
 
 | Problema | Soluzione |
 |----------|-----------|
-| Display bianco | Verificare configurazione TFT_eSPI |
+| Display nero/bianco | Verificare Setup206 in TFT_eSPI, usare libreria LilyGo |
+| Errore GPIO compilazione | Usare ESP32 board package versione 2.0.14-2.0.17 |
 | Letture instabili | Verificare collegamenti HX711, aumentare `WEIGHT_THRESHOLD` |
 | Peso sempre 0 | Controllare cablaggio cella di carico |
 | Valori negativi | Eseguire tara con bilancia scarica |
+| Serial non funziona | Abilitare "USB CDC On Boot" nelle impostazioni board |
+
+## Link Utili
+
+- [Repository LilyGo T-Display-S3](https://github.com/Xinyuan-LilyGO/T-Display-S3)
+- [Libreria HX711](https://github.com/bogde/HX711)
+- [TFT_eSPI Library](https://github.com/Bodmer/TFT_eSPI)
 
 ## Licenza
 
