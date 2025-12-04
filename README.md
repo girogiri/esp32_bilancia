@@ -95,7 +95,9 @@ Installare tramite Library Manager di Arduino IDE:
    - Commentare `#include <User_Setup.h>`
    - Decommentare `#include <User_Setups/Setup25_TTGO_T_Display.h>`
 
-2. **HX711** by bogde
+2. **HX711 Arduino Library** by Bogdan Necula
+   - Nel Library Manager cerca: `HX711`
+   - Seleziona: "HX711 Arduino Library" by Bogdan Necula
    - Repository: https://github.com/bogde/HX711
 
 ## Installazione
