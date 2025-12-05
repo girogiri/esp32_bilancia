@@ -43,7 +43,7 @@
 // Fattore di calibrazione - DA CALIBRARE CON PESO NOTO
 // Procedura: posizionare peso noto, calcolare:
 // nuovo_fattore = vecchio_fattore * (peso_letto / peso_reale)
-#define CALIBRATION_FACTOR  420.0
+#define CALIBRATION_FACTOR  209.2
 
 // Soglia minima per considerare un peso valido (evita rumore)
 #define WEIGHT_THRESHOLD    5.0     // grammi
