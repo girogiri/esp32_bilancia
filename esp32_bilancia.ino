@@ -49,6 +49,15 @@
 #define WEIGHT_THRESHOLD    5.0     // grammi
 
 // =============================================================================
+// CONFIGURAZIONE FILTRO SMOOTHING
+// =============================================================================
+// Fattore di smoothing EMA (Exponential Moving Average)
+// Valori: 0.01 - 0.5
+// Più basso = più smooth ma più lento a reagire
+// Più alto = meno smooth ma più reattivo
+#define SMOOTHING_FACTOR    0.15
+
+// =============================================================================
 // CONFIGURAZIONE DISPLAY T-DISPLAY
 // =============================================================================
 // Display: 1.14" ST7789 135x240 pixel (SPI interface)
@@ -71,10 +80,12 @@
 TFT_eSPI tft = TFT_eSPI();
 HX711 scale;
 
-float currentWeight = 0.0;      // Peso attuale in grammi
+float rawWeight = 0.0;          // Peso grezzo (non filtrato)
+float currentWeight = 0.0;      // Peso filtrato (smoothed)
 float maxWeight = 0.0;          // Peso massimo registrato
 float lastDisplayedWeight = -1; // Per evitare refresh inutili
 float lastDisplayedMax = -1;
+bool filterInitialized = false; // Flag per inizializzazione filtro
 
 unsigned long lastReadTime = 0;
 const unsigned long READ_INTERVAL = 12;  // ~80 SPS (1000ms / 80 = 12.5ms)
@@ -200,9 +211,11 @@ void performTare() {
   // Esegui media di 20 letture per tara stabile
   scale.tare(20);
 
-  // Reset peso massimo dopo tara
+  // Reset valori dopo tara
   maxWeight = 0.0;
   currentWeight = 0.0;
+  rawWeight = 0.0;
+  filterInitialized = false;  // Reset filtro EMA
   lastDisplayedWeight = -1;
   lastDisplayedMax = -1;
 
@@ -210,21 +223,31 @@ void performTare() {
 }
 
 // =============================================================================
-// LETTURA PESO
+// LETTURA PESO CON FILTRO EMA
 // =============================================================================
 void readWeight() {
   if (scale.is_ready()) {
-    // Lettura singola per velocità massima (80 SPS)
-    // Segno invertito: -1 per celle montate in compressione
-    currentWeight = -scale.get_units(1);
-
-    // Applica soglia minima
-    if (abs(currentWeight) < WEIGHT_THRESHOLD) {
-      currentWeight = 0.0;
-    }
+    // Lettura grezza (segno invertito per compressione)
+    rawWeight = -scale.get_units(1);
 
     // Limita a valori positivi
-    if (currentWeight < 0) {
+    if (rawWeight < 0) {
+      rawWeight = 0.0;
+    }
+
+    // Filtro EMA (Exponential Moving Average)
+    // Formula: filtered = alpha * new + (1 - alpha) * filtered
+    if (!filterInitialized) {
+      // Prima lettura: inizializza il filtro
+      currentWeight = rawWeight;
+      filterInitialized = true;
+    } else {
+      // Applica smoothing
+      currentWeight = (SMOOTHING_FACTOR * rawWeight) + ((1.0 - SMOOTHING_FACTOR) * currentWeight);
+    }
+
+    // Applica soglia minima (dopo il filtro)
+    if (currentWeight < WEIGHT_THRESHOLD) {
       currentWeight = 0.0;
     }
   }
