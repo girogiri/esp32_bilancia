@@ -215,7 +215,8 @@ void performTare() {
 void readWeight() {
   if (scale.is_ready()) {
     // Lettura singola per velocità massima (80 SPS)
-    currentWeight = scale.get_units(1);
+    // Segno invertito: -1 per celle montate in compressione
+    currentWeight = -scale.get_units(1);
 
     // Applica soglia minima
     if (abs(currentWeight) < WEIGHT_THRESHOLD) {
