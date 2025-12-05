@@ -1,9 +1,9 @@
 /*
  * ESP32 Bilancia - Weight Scale Firmware
  *
- * Firmware per LilyGo T-Display S3 (ESP32-S3) con cella di carico HX711
+ * Firmware per LilyGo T-Display (ESP32) con cella di carico HX711
  *
- * Hardware: T-Display S3 ESP32-S3 1.9" ST7789 170x320
+ * Hardware: T-Display ESP32 1.14" ST7789 135x240
  *
  * Caratteristiche:
  * - Lettura peso in tempo reale a 80 SPS
@@ -12,7 +12,7 @@
  * - Output seriale per Arduino Serial Plotter
  *
  * Librerie richieste:
- * - TFT_eSPI (configurata per T-Display S3 - Setup206)
+ * - TFT_eSPI (configurata per T-Display - Setup25)
  * - HX711 Arduino Library by Bogdan Necula
  */
 
@@ -22,17 +22,16 @@
 // =============================================================================
 // CONFIGURAZIONE PIN HX711
 // =============================================================================
-// Pin disponibili su T-Display S3 (non usati da display/pulsanti):
-// GPIO 1, 2, 3, 10, 11, 12, 13, 16, 17, 18, 21
-#define HX711_DOUT_PIN  16    // Data pin
-#define HX711_SCK_PIN   17    // Clock pin
+// Pin disponibili su T-Display ESP32:
+// GPIO 2, 12, 13, 15, 17, 21, 22, 25, 26, 27, 32, 33
+#define HX711_DOUT_PIN  27    // Data pin
+#define HX711_SCK_PIN   26    // Clock pin
 
 // =============================================================================
-// CONFIGURAZIONE PULSANTI T-DISPLAY S3
+// CONFIGURAZIONE PULSANTI T-DISPLAY
 // =============================================================================
-// I due pulsanti programmabili sulla T-Display S3
-#define BUTTON_TARE     0     // GPIO 0 - Pulsante BOOT (reset tara)
-#define BUTTON_RESET    14    // GPIO 14 - Pulsante KEY (reset max)
+#define BUTTON_TARE     0     // GPIO 0 - Pulsante superiore (BOOT)
+#define BUTTON_RESET    35    // GPIO 35 - Pulsante inferiore
 
 // =============================================================================
 // CONFIGURAZIONE CELLA DI CARICO
@@ -50,19 +49,16 @@
 #define WEIGHT_THRESHOLD    5.0     // grammi
 
 // =============================================================================
-// CONFIGURAZIONE DISPLAY T-DISPLAY S3
+// CONFIGURAZIONE DISPLAY T-DISPLAY
 // =============================================================================
-// Display: 1.9" ST7789 170x320 pixel (8-bit parallel interface)
-#define SCREEN_WIDTH    320
-#define SCREEN_HEIGHT   170
+// Display: 1.14" ST7789 135x240 pixel (SPI interface)
+#define SCREEN_WIDTH    240
+#define SCREEN_HEIGHT   135
 
 #define TFT_BG_COLOR    TFT_BLACK
 #define TFT_TEXT_COLOR  TFT_WHITE
 #define TFT_MAX_COLOR   TFT_YELLOW
 #define TFT_LABEL_COLOR TFT_CYAN
-
-// Pin power display (necessario per alimentazione da batteria)
-#define PIN_POWER_ON    15
 
 // =============================================================================
 // CONFIGURAZIONE SERIALE
@@ -104,20 +100,16 @@ void resetMaxWeight();
 // SETUP
 // =============================================================================
 void setup() {
-  // Abilita alimentazione display (importante per uso con batteria)
-  pinMode(PIN_POWER_ON, OUTPUT);
-  digitalWrite(PIN_POWER_ON, HIGH);
-
   // Inizializza seriale
   Serial.begin(SERIAL_BAUD);
   delay(100);
 
-  Serial.println("ESP32-S3 Bilancia - Avvio...");
+  Serial.println("ESP32 Bilancia - Avvio...");
   Serial.println("Peso(g)\tMax(g)");  // Header per Serial Plotter
 
-  // Configura pulsanti (active LOW con pull-up interno)
+  // Configura pulsanti
   pinMode(BUTTON_TARE, INPUT_PULLUP);
-  pinMode(BUTTON_RESET, INPUT_PULLUP);
+  pinMode(BUTTON_RESET, INPUT);  // GPIO 35 ha pull-up interno
 
   // Inizializza display
   initDisplay();
@@ -126,15 +118,15 @@ void setup() {
   tft.fillScreen(TFT_BG_COLOR);
   tft.setTextColor(TFT_LABEL_COLOR, TFT_BG_COLOR);
   tft.setTextSize(2);
-  tft.setCursor(60, 60);
-  tft.println("Inizializzazione...");
+  tft.setCursor(20, 40);
+  tft.println("Avvio...");
 
   // Inizializza bilancia
   initScale();
 
   // Esegui tara automatica
-  tft.setCursor(60, 90);
-  tft.println("Tara in corso...");
+  tft.setCursor(20, 70);
+  tft.println("Tara...");
   performTare();
 
   // Pulisci display per la visualizzazione principale
@@ -176,14 +168,9 @@ void loop() {
 // =============================================================================
 void initDisplay() {
   tft.init();
-  tft.setRotation(1);  // Landscape (320x170)
+  tft.setRotation(1);  // Landscape (240x135)
   tft.fillScreen(TFT_BG_COLOR);
   tft.setTextColor(TFT_TEXT_COLOR, TFT_BG_COLOR);
-
-  // Imposta luminosità backlight (opzionale)
-  // ledcSetup(0, 10000, 8);
-  // ledcAttachPin(TFT_BL, 0);
-  // ledcWrite(0, 255);  // Luminosità massima
 }
 
 // =============================================================================
@@ -201,9 +188,6 @@ void initScale() {
   // Imposta fattore di calibrazione
   scale.set_scale(CALIBRATION_FACTOR);
 
-  // Configura per 80 SPS (canale A, gain 128)
-  // HX711 supporta 10 SPS o 80 SPS basato sul pin RATE
-  // Con la libreria, usiamo letture veloci
   Serial.println("HX711 inizializzato");
 }
 
@@ -238,7 +222,7 @@ void readWeight() {
       currentWeight = 0.0;
     }
 
-    // Limita a valori positivi (opzionale)
+    // Limita a valori positivi
     if (currentWeight < 0) {
       currentWeight = 0.0;
     }
@@ -250,7 +234,6 @@ void readWeight() {
 // =============================================================================
 void updateDisplay() {
   // Aggiorna solo se i valori sono cambiati significativamente
-  // per evitare flickering
   bool weightChanged = abs(currentWeight - lastDisplayedWeight) >= 0.5;
   bool maxChanged = abs(maxWeight - lastDisplayedMax) >= 0.5;
 
@@ -258,20 +241,19 @@ void updateDisplay() {
     // ---- RIGA SUPERIORE: PESO ATTUALE ----
     if (weightChanged) {
       // Pulisci area peso attuale
-      tft.fillRect(0, 0, SCREEN_WIDTH, 85, TFT_BG_COLOR);
+      tft.fillRect(0, 0, SCREEN_WIDTH, 67, TFT_BG_COLOR);
 
       // Label
       tft.setTextColor(TFT_LABEL_COLOR, TFT_BG_COLOR);
       tft.setTextSize(2);
-      tft.setCursor(15, 10);
+      tft.setCursor(10, 5);
       tft.print("PESO:");
 
-      // Valore peso attuale (font grande)
+      // Valore peso attuale
       tft.setTextColor(TFT_TEXT_COLOR, TFT_BG_COLOR);
-      tft.setTextSize(5);
-      tft.setCursor(15, 40);
+      tft.setTextSize(4);
+      tft.setCursor(10, 30);
 
-      // Formatta con precisione appropriata
       if (currentWeight >= 1000) {
         tft.printf("%6.0f g", currentWeight);
       } else {
@@ -284,18 +266,18 @@ void updateDisplay() {
     // ---- RIGA INFERIORE: PESO MASSIMO ----
     if (maxChanged) {
       // Pulisci area peso massimo
-      tft.fillRect(0, 86, SCREEN_WIDTH, 84, TFT_BG_COLOR);
+      tft.fillRect(0, 68, SCREEN_WIDTH, 67, TFT_BG_COLOR);
 
       // Label
       tft.setTextColor(TFT_MAX_COLOR, TFT_BG_COLOR);
       tft.setTextSize(2);
-      tft.setCursor(15, 95);
+      tft.setCursor(10, 73);
       tft.print("MAX:");
 
-      // Valore peso massimo (font grande)
+      // Valore peso massimo
       tft.setTextColor(TFT_MAX_COLOR, TFT_BG_COLOR);
-      tft.setTextSize(5);
-      tft.setCursor(15, 125);
+      tft.setTextSize(4);
+      tft.setCursor(10, 98);
 
       if (maxWeight >= 1000) {
         tft.printf("%6.0f g", maxWeight);
@@ -314,7 +296,6 @@ void updateDisplay() {
 void sendSerialData() {
   // Formato per Arduino Serial Plotter:
   // valore1 TAB valore2
-  // Il plotter riconosce automaticamente le colonne
 
   Serial.print(currentWeight, 1);
   Serial.print("\t");
@@ -327,7 +308,7 @@ void sendSerialData() {
 void handleButtons() {
   unsigned long currentTime = millis();
 
-  // Pulsante TARE (GPIO 0 - BOOT) - Active LOW
+  // Pulsante TARE (GPIO 0) - Active LOW
   if (digitalRead(BUTTON_TARE) == LOW) {
     if (currentTime - lastButtonTare > DEBOUNCE_DELAY) {
       lastButtonTare = currentTime;
@@ -335,8 +316,8 @@ void handleButtons() {
       // Feedback visivo
       tft.fillScreen(TFT_BLUE);
       tft.setTextColor(TFT_WHITE, TFT_BLUE);
-      tft.setTextSize(4);
-      tft.setCursor(100, 65);
+      tft.setTextSize(3);
+      tft.setCursor(60, 50);
       tft.println("TARA...");
 
       performTare();
@@ -348,7 +329,7 @@ void handleButtons() {
     }
   }
 
-  // Pulsante RESET MAX (GPIO 14 - KEY) - Active LOW
+  // Pulsante RESET MAX (GPIO 35) - Active LOW
   if (digitalRead(BUTTON_RESET) == LOW) {
     if (currentTime - lastButtonReset > DEBOUNCE_DELAY) {
       lastButtonReset = currentTime;
@@ -362,10 +343,10 @@ void handleButtons() {
 // =============================================================================
 void resetMaxWeight() {
   // Feedback visivo
-  tft.fillRect(0, 86, SCREEN_WIDTH, 84, TFT_GREEN);
+  tft.fillRect(0, 68, SCREEN_WIDTH, 67, TFT_GREEN);
   tft.setTextColor(TFT_BLACK, TFT_GREEN);
-  tft.setTextSize(3);
-  tft.setCursor(70, 115);
+  tft.setTextSize(2);
+  tft.setCursor(50, 90);
   tft.println("MAX RESET!");
 
   delay(300);
@@ -375,7 +356,7 @@ void resetMaxWeight() {
   lastDisplayedMax = -1;
 
   // Ripristina display
-  tft.fillRect(0, 86, SCREEN_WIDTH, 84, TFT_BG_COLOR);
+  tft.fillRect(0, 68, SCREEN_WIDTH, 67, TFT_BG_COLOR);
 
   Serial.println("# Peso massimo resettato");
 }
